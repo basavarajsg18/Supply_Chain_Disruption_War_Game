@@ -48,9 +48,6 @@ what this project actually adds:
 ├── summary.md
 └── README.md
 
-# Provided by the neuro-san-studio base install (not part of this project):
-# config/, mcp/, logs/, registries/aaosa*.hocon, registries/generated/,
-# nss_local.db, server_log.txt, .env
 ```
 
 ## Prerequisites
