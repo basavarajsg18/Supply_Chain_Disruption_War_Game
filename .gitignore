@@ -1,0 +1,28 @@
+# Environment
+.venv/
+venv/
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# neuro-san runtime artifacts 
+logs/
+mcp/
+nss_local.db
+nss_local.db-wal
+nss_local.db-shm
+server_log.txt
+registries/generated/
+
+# This project's SQLite state — a fresh baseline is auto-seeded on first run
+coded_tools/supply_chain_war_game/war_game.db
+coded_tools/supply_chain_war_game/war_game.db-wal
+coded_tools/supply_chain_war_game/war_game.db-shm
+
+# OS / editor cruft
+.DS_Store
+.vscode/
+*.swp

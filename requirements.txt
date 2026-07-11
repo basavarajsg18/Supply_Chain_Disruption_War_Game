@@ -1,0 +1,11 @@
+# --- neuro-san-studio core (as used by this project) ---
+neuro-san==0.6.42
+python-dotenv==1.0.1
+aiofiles>=24.1.0
+langchain-mcp-adapters>=0.1.7,<1.0
+langchain-mistralai
+streamlit==1.56.0
+
+# --- added for this project: SQLite-backed shared state + live dashboard ---
+# sqlite3 is part of the Python standard library and needs no entry here.
+flask>=3.0.0

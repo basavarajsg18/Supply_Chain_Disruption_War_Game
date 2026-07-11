@@ -1,0 +1,462 @@
+# Supply Chain Disruption War Game
+#
+# A live, reactive multi-agent network simulating a small supply chain:
+#   2 Suppliers -> 1 Logistics/routing layer -> 1 Warehouse -> 3 Retail demand points
+#
+# Unlike a linear pipeline, this network shares one live "world state" (see
+# coded_tools/supply_chain_war_game/world_state.py) that every agent's coded
+# tools read from and write to. A disruption injected mid-conversation
+# (port strike, supplier going offline, demand spike) is immediately visible
+# to every other agent on their next tool call, so the mesh has to detect
+# it, argue about trade-offs, and re-plan live -- with the Coordinator
+# making the final cost vs. speed vs. risk call.
+#
+# HOW TO RUN THE DEMO:
+#   1. python -m neuro_san_studio run
+#   2. Open http://localhost:4173/ and pick "supply_chain_war_game"
+#   3. Ask for a status briefing, e.g.:
+#        "Give me a full status briefing on the supply chain."
+#   4. Let it run a couple of turns normally, then inject a live disruption
+#      via plain language, e.g.:
+#        "Port strike at Supplier A's port, severity severe."
+#        "Supplier B just went offline."
+#        "Demand at Retail_West just spiked 2.5x."
+#   5. Ask the Coordinator to re-plan:
+#        "Given that, what should we do? Optimize for speed this time."
+#   6. To reset between demo runs:
+#        "Reset the simulation to baseline."
+
+{
+    # Optional metadata describing this agent network
+    "metadata": {
+        "description": "A live, reactive multi-agent supply chain war game: 2 Suppliers -> Logistics -> Warehouse -> 3 Retail demand points, sharing one live world state. Inject disruptions (port strikes, supplier outages, demand spikes) mid-conversation and watch the network detect, argue, and re-plan in real time.",
+        "tags": ["multi-agent", "simulation", "supply-chain", "live-state", "war-game"],
+        "sample_queries": [
+            "Give me a full status briefing on the supply chain.",
+            "Port strike at Supplier A's port, severity severe.",
+            "Supplier B just went offline.",
+            "Demand at Retail_West just spiked 2.5x.",
+            "Given that, what should we do? Optimize for speed this time.",
+            "Reset the simulation to baseline."
+        ]
+    },
+
+    include "registries/aaosa.hocon"
+
+    include "config/llm_config.hocon"
+
+    "instructions_prefix": """
+You are one agent inside a live "Supply Chain Disruption War Game" simulation.
+This is a real-time multi-agent network, not a linear pipeline: conditions can
+change mid-conversation because a disruption event (port strike, supplier
+outage, demand spike) may be injected at any time by the user or by another
+agent. Always re-check live data via your tools before answering -- never
+assume the network is still in the state it was a few turns ago.
+Only answer inquiries that are directly within your area of expertise.
+Do not try to help with matters outside your role.
+Do not mention what you can NOT do. Only mention what you can do.
+""",
+
+    "tools": [
+        # ================= FRONT MAN =================
+        {
+            "name": "SupplyChainCoordinator",
+            "function": ${aaosa_call}{
+                "description": """
+The Coordinator of a live 2-supplier / 1-logistics / 1-warehouse / 3-retail
+supply chain war game. Give status briefings, detect and explain live
+disruptions, and make the final trade-off call between cost, speed, and
+risk when the network needs to re-plan.
+                """
+            },
+            "instructions": ${instructions_prefix} """
+Your name is SupplyChainCoordinator. You are the final decision-maker for
+this supply chain network.
+
+Your job:
+1. When asked for a status briefing, call ALL of your down-chain agents
+   (DisruptionControlRoom, SupplierRelationsManager, LogisticsPlanner,
+   WarehouseOperations, DemandForecastingUnit) to assemble a full live
+   picture, then summarize it clearly: suppliers' status, best shipping
+   routes, warehouse days-of-supply, and retail demand -- and flag any
+   active disruptions.
+2. When the user injects a disruption in plain language (e.g. "there's a
+   port strike at Supplier A", "Supplier B is offline", "demand spiked at
+   Retail_West"), translate it into a call to DisruptionControlRoom to
+   actually apply it to the live world state. Then immediately re-query the
+   other agents to see the downstream impact, and report what changed.
+3. When asked to re-plan or decide what to do, gather fresh input from
+   SupplierRelationsManager, LogisticsPlanner, WarehouseOperations, and
+   DemandForecastingUnit, weigh the trade-offs between cost, speed
+   (lead time / transit time), and risk, and make a single clear final
+   recommendation -- e.g. "Shift 60% of volume to Supplier B via land
+   freight for the next 3 weeks; accept the +$0.40/unit cost to avoid the
+   port-strike delay, since warehouse days-of-supply would otherwise drop
+   below safety stock." Always state what you are optimizing for and what
+   you are trading away.
+4. If the user asks to reset the simulation, delegate that to
+   DisruptionControlRoom.
+
+Never fabricate numbers -- always get them live from your down-chain agents.
+""" ${aaosa_instructions},
+            "tools": [
+                "DisruptionControlRoom",
+                "SupplierRelationsManager",
+                "LogisticsPlanner",
+                "WarehouseOperations",
+                "DemandForecastingUnit"
+            ]
+        },
+
+        # ================= DISRUPTION CONTROL ROOM =================
+        {
+            "name": "DisruptionControlRoom",
+            "function": ${aaosa_call}{
+                "description": """
+Controls live disruption events on the network: injecting port strikes,
+supplier outages, or demand spikes; resolving them; resetting the whole
+simulation to baseline; and reporting full simulation status.
+                """
+            },
+            "instructions": ${instructions_prefix} """
+Your name is DisruptionControlRoom. You are the "game master" interface for
+this war game.
+
+- To inject a disruption, call InjectDisruptionTool with:
+    "event_type": "port_strike" | "supplier_offline" | "demand_spike"
+    "target": a supplier_id ("Supplier_A" or "Supplier_B") for port_strike
+        and supplier_offline, or a retail_id ("Retail_North", "Retail_South",
+        or "Retail_West") for demand_spike
+    "severity": "minor" | "moderate" | "severe" (default "moderate")
+    "multiplier": optional explicit override, mainly for demand_spike
+    "notes": optional free-text color
+  Map natural language to these values yourself. For example "the port at
+  Long Beach is on strike" -> target "Supplier_A" (that's the supplier whose
+  route runs through that port). "Retail West demand tripled" -> target
+  "Retail_West", multiplier 3.0.
+- To resolve/undo a specific disruption, call InjectDisruptionTool with
+  event_type "resolve_event" and target set to the disruption's id (e.g.
+  "DISR-001"), or "all" to clear every active disruption.
+- To reset the ENTIRE simulation back to nominal baseline, call
+  ResetSimulationTool.
+- To report the full current simulation state and active disruptions, call
+  SimulationStatusTool.
+
+Always report back exactly what changed (the message returned by your
+tools), so the rest of the network and the user can see the concrete effect.
+""" ${aaosa_instructions},
+            "tools": ["InjectDisruptionTool", "ResetSimulationTool", "SimulationStatusTool"]
+        },
+        {
+            "name": "InjectDisruptionTool",
+            "function": {
+                "description": "Injects (or resolves) a live disruption event into the shared world state.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "event_type": {
+                            "type": "string",
+                            "enum": ["port_strike", "supplier_offline", "demand_spike", "resolve_event"],
+                            "description": "The type of disruption event to apply."
+                        },
+                        "target": {
+                            "type": "string",
+                            "description": "Supplier_A/Supplier_B for port_strike/supplier_offline, Retail_North/Retail_South/Retail_West for demand_spike, or a disruption id / 'all' for resolve_event."
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["minor", "moderate", "severe"],
+                            "description": "How severe the disruption is. Defaults to moderate."
+                        },
+                        "multiplier": {
+                            "type": "float",
+                            "default": 1.0,
+                            "description": "Optional explicit multiplier override, mainly used for demand_spike."
+                        },
+                        "notes": {
+                            "type": "string",
+                            "description": "Optional free-text color/context for the scenario."
+                        }
+                    },
+                    "required": ["event_type", "target"]
+                }
+            },
+            "class": "coded_tools.supply_chain_war_game.disruption_control.InjectDisruption"
+        },
+        {
+            "name": "ResetSimulationTool",
+            "function": {
+                "description": "Resets the entire supply chain simulation back to its nominal baseline.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "confirm": {
+                            "type": "boolean",
+                            "description": "Optional confirmation flag to reset the simulation."
+                        }
+                    },
+                    "required": []
+                }
+            },
+            "class": "coded_tools.supply_chain_war_game.disruption_control.ResetSimulation"
+        },
+        {
+            "name": "SimulationStatusTool",
+            "function": {
+                "description": "Returns the full current simulation state, active disruptions, and recent event log.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "reason": {
+                            "type": "string",
+                            "description": "Optional reason for requesting the current simulation status."
+                        }
+                    },
+                    "required": []
+                }
+            },
+            "class": "coded_tools.supply_chain_war_game.disruption_control.GetSimulationStatus"
+        },
+
+        # ================= SUPPLIER SIDE =================
+        {
+            "name": "SupplierRelationsManager",
+            "function": ${aaosa_call}{
+                "description": """
+Manages relationships with both suppliers, protecting their margins and
+lead times, and reports each supplier's live status.
+                """
+            },
+            "instructions": ${instructions_prefix} """
+Your name is SupplierRelationsManager. Your objective is to protect
+supplier margins and lead times while giving an honest live read on
+capacity and risk.
+Call SupplierAAgent and SupplierBAgent to get each supplier's current
+status (online/offline, capacity, lead time, unit cost, shipping route
+health), then summarize both together so the requester can compare them.
+""" ${aaosa_instructions},
+            "tools": ["SupplierAAgent", "SupplierBAgent"]
+        },
+        {
+            "name": "SupplierAAgent",
+            "function": ${aaosa_call}{
+                "description": "Reports live status for Supplier A (Vietnam, electronics sub-assemblies, ocean freight)."
+            },
+            "instructions": ${instructions_prefix} """
+Your name is SupplierAAgent. You represent Supplier A only. Your objective
+is to protect Supplier A's margin and lead-time commitments. Call
+SupplierAStatusAPI to get your live status and route health, and report it
+honestly, including if you have gone offline or your route is disrupted.
+""" ${aaosa_instructions},
+            "tools": ["SupplierAStatusAPI"]
+        },
+        {
+            "name": "SupplierBAgent",
+            "function": ${aaosa_call}{
+                "description": "Reports live status for Supplier B (Mexico, final assembly parts, land freight)."
+            },
+            "instructions": ${instructions_prefix} """
+Your name is SupplierBAgent. You represent Supplier B only. Your objective
+is to protect Supplier B's margin and lead-time commitments. Call
+SupplierBStatusAPI to get your live status and route health, and report it
+honestly, including if you have gone offline or your route is disrupted.
+""" ${aaosa_instructions},
+            "tools": ["SupplierBStatusAPI"]
+        },
+        {
+            "name": "SupplierAStatusAPI",
+            "function": {
+                "description": "Returns Supplier A's live status and shipping route health.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "reason": {
+                            "type": "string",
+                            "description": "Optional reason for checking Supplier A's status."
+                        }
+                    },
+                    "required": []
+                }
+            },
+            "class": "coded_tools.supply_chain_war_game.supplier_status.SupplierAStatusAPI"
+        },
+        {
+            "name": "SupplierBStatusAPI",
+            "function": {
+                "description": "Returns Supplier B's live status and shipping route health.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "reason": {
+                            "type": "string",
+                            "description": "Optional reason for checking Supplier B's status."
+                        }
+                    },
+                    "required": []
+                }
+            },
+            "class": "coded_tools.supply_chain_war_game.supplier_status.SupplierBStatusAPI"
+        },
+
+        # ================= LOGISTICS =================
+        {
+            "name": "LogisticsPlanner",
+            "function": ${aaosa_call}{
+                "description": """
+Plans and optimizes shipping routes from both suppliers to the warehouse,
+minimizing cost and distance/time while tracking route risk.
+                """
+            },
+            "instructions": ${instructions_prefix} """
+Your name is LogisticsPlanner. Your objective is to minimize shipping cost
+and transit time across both supplier routes, while staying aware of risk.
+Call RouteOptimizerTool (pass "prioritize": "cost", "speed", or "risk" based
+on what's being asked -- default to "cost" if not specified) to get live
+route comparisons, then explain the ranked recommendation in plain terms,
+including whether either supplier is currently unavailable.
+""" ${aaosa_instructions},
+            "tools": ["RouteOptimizerTool"]
+        },
+        {
+            "name": "RouteOptimizerTool",
+            "function": {
+                "description": "Compares both supplier shipping routes live and ranks them by cost, speed, or risk.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "prioritize": {
+                            "type": "string",
+                            "enum": ["cost", "speed", "risk"],
+                            "description": "Which factor to optimize the ranking for. Defaults to cost."
+                        }
+                    },
+                    "required": []
+                }
+            },
+            "class": "coded_tools.supply_chain_war_game.logistics.RouteOptimizer"
+        },
+
+        # ================= WAREHOUSE =================
+        {
+            "name": "WarehouseOperations",
+            "function": ${aaosa_call}{
+                "description": """
+Manages the central warehouse's inventory position, avoiding stockouts and
+overstock given live retail demand and incoming supply.
+                """
+            },
+            "instructions": ${instructions_prefix} """
+Your name is WarehouseOperations. Your objective is to avoid both stockouts
+and overstock. Call WarehouseInventoryTool to get your live inventory
+position, days-of-supply given current total retail demand, and stockout/
+overstock risk flags, then report them clearly, calling out any risk.
+
+If the user tells you stock has physically changed -- a shipment was
+received, units were damaged/written off, a manual count correction, etc.
+-- call AdjustInventoryTool with "units" (positive to add, negative to
+remove) and a short "reason", then report the new total and whether that
+changes your stockout/overstock read.
+
+If the user asks you to advance time / simulate a week passing / run
+replenishment (e.g. "run the weekly replenishment", "simulate next week",
+"let a week go by"), call RunWeeklyReplenishmentTool. This ships each
+ONLINE supplier's full weekly capacity into the warehouse (an OFFLINE
+supplier contributes zero), capped at warehouse capacity. Report the
+per-supplier breakdown, how much was actually received, and flag if any
+units overflowed because the warehouse was full.
+""" ${aaosa_instructions},
+            "tools": ["WarehouseInventoryTool", "AdjustInventoryTool", "RunWeeklyReplenishmentTool"]
+        },
+        {
+            "name": "WarehouseInventoryTool",
+            "function": {
+                "description": "Returns live warehouse inventory position and stockout/overstock risk.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "reason": {
+                            "type": "string",
+                            "description": "Optional reason for checking warehouse inventory."
+                        }
+                    },
+                    "required": []
+                }
+            },
+            "class": "coded_tools.supply_chain_war_game.warehouse.WarehouseInventoryChecker"
+        },
+        {
+            "name": "AdjustInventoryTool",
+            "function": {
+                "description": "Adds or removes units from the warehouse's current stock on hand (e.g. a shipment arrived, or units were damaged/written off).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "units": {
+                            "type": "float",
+                            "description": "Signed number of units to apply. Positive adds stock, negative removes it."
+                        },
+                        "reason": {
+                            "type": "string",
+                            "description": "Short free-text reason for the change, e.g. 'inbound shipment received'."
+                        }
+                    },
+                    "required": ["units"]
+                }
+            },
+            "class": "coded_tools.supply_chain_war_game.warehouse.AdjustInventory"
+        },
+        {
+            "name": "RunWeeklyReplenishmentTool",
+            "function": {
+                "description": "Advances the simulation by one week: each online supplier ships its full weekly capacity into the warehouse (capped at warehouse capacity); offline suppliers ship nothing.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "notes": {
+                            "type": "string",
+                            "description": "Optional free-text context, e.g. 'week 3 of the demo'."
+                        }
+                    },
+                    "required": []
+                }
+            },
+            "class": "coded_tools.supply_chain_war_game.warehouse.RunWeeklyReplenishment"
+        },
+
+
+        # ================= DEMAND FORECAST =================
+        {
+            "name": "DemandForecastingUnit",
+            "function": ${aaosa_call}{
+                "description": """
+Forecasts and reports what retail demand actually looks like right now
+across all three retail points, flagging any spikes above baseline.
+                """
+            },
+            "instructions": ${instructions_prefix} """
+Your name is DemandForecastingUnit. Your objective is to accurately predict
+and report what retail actually needs. Call DemandForecastTool to get live
+demand at each retail point vs. its baseline, and flag any that are
+spiking, with the percentage above baseline.
+""" ${aaosa_instructions},
+            "tools": ["DemandForecastTool"]
+        },
+        {
+            "name": "DemandForecastTool",
+            "function": {
+                "description": "Returns live demand at each retail point vs. baseline, flagging spikes.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "reason": {
+                            "type": "string",
+                            "description": "Optional reason for checking demand forecast."
+                        }
+                    },
+                    "required": []
+                }
+            },
+            "class": "coded_tools.supply_chain_war_game.demand_forecast.DemandForecastAPI"
+        }
+    ]
+}

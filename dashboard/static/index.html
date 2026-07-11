@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Supply Chain War Game — Live Control Room</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #12161f;
+    --panel-border: #232838;
+    --text: #e6e9f0;
+    --muted: #8891a7;
+    --accent: #4fd1c5;
+    --accent-dim: #2c8f86;
+    --warn: #f0b429;
+    --danger: #ef5350;
+    --ok: #57c785;
+    --mono: "SF Mono", "JetBrains Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: radial-gradient(circle at 20% -10%, #14202b 0%, var(--bg) 45%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    padding: 20px 28px 14px;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 19px;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  header h1 .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 8px var(--ok);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+  header .sub { color: var(--muted); font-size: 12.5px; }
+  header .actions { display: flex; gap: 8px; }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 7px;
+    border: 1px solid var(--panel-border);
+    background: #1a2030;
+    color: var(--text);
+    padding: 7px 13px;
+    font-size: 12.5px;
+    transition: border-color .15s, background .15s;
+  }
+  button:hover { border-color: var(--accent-dim); background: #202840; }
+  button.primary { background: var(--accent); color: #04211d; border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { background: #6ee0d4; }
+  button.danger { border-color: #5a2222; }
+  button.danger:hover { border-color: var(--danger); background: #2a1616; }
+
+  main {
+    padding: 22px 28px 60px;
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 16px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .card h2 {
+    margin: 0 0 12px;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .span-4 { grid-column: span 4; }
+  .span-5 { grid-column: span 5; }
+  .span-6 { grid-column: span 6; }
+  .span-7 { grid-column: span 7; }
+  .span-8 { grid-column: span 8; }
+  .span-12 { grid-column: span 12; }
+  @media (max-width: 980px) {
+    .span-4, .span-5, .span-6, .span-7, .span-8 { grid-column: span 12; }
+  }
+
+  .stat-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 4px; }
+  .stat-value { font-size: 34px; font-weight: 700; font-family: var(--mono); }
+  .stat-unit { color: var(--muted); font-size: 13px; padding-bottom: 6px; }
+  .bar-track {
+    height: 8px; border-radius: 5px; background: #1a2030; overflow: hidden; margin: 10px 0 4px;
+  }
+  .bar-fill { height: 100%; border-radius: 5px; background: var(--accent); transition: width .4s; }
+  .meta-line { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px;
+    font-weight: 600; letter-spacing: .02em;
+  }
+  .badge.ok { background: rgba(87,199,133,.15); color: var(--ok); }
+  .badge.warn { background: rgba(240,180,41,.15); color: var(--warn); }
+  .badge.danger { background: rgba(239,83,80,.15); color: var(--danger); }
+  .badge.muted { background: rgba(136,145,167,.15); color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; padding: 4px 6px; border-bottom: 1px solid var(--panel-border); }
+  td { padding: 8px 6px; border-bottom: 1px solid #191e2c; }
+  tr:last-child td { border-bottom: none; }
+
+  .form-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  input, select {
+    font: inherit; background: #0d1119; border: 1px solid var(--panel-border); color: var(--text);
+    border-radius: 7px; padding: 7px 10px; font-size: 13px;
+  }
+  input[type="number"] { width: 100px; }
+  input[type="text"] { flex: 1; min-width: 140px; }
+
+  .event-log { max-height: 260px; overflow-y: auto; font-family: var(--mono); font-size: 12px; }
+  .event-log div { padding: 4px 0; border-bottom: 1px dashed #191e2c; color: var(--text); }
+  .event-log span.ts { color: var(--muted); margin-right: 8px; }
+
+  .disruption-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 0; border-bottom: 1px dashed #191e2c; gap: 10px;
+  }
+  .disruption-item:last-child { border-bottom: none; }
+  .disruption-item .desc { font-size: 12.5px; }
+  .disruption-item .id { font-family: var(--mono); color: var(--muted); font-size: 11px; }
+  .empty-note { color: var(--muted); font-size: 12.5px; padding: 8px 0; }
+
+  #toast {
+    position: fixed; bottom: 20px; right: 20px; background: #1a2030; border: 1px solid var(--accent-dim);
+    padding: 10px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transform: translateY(10px);
+    transition: opacity .25s, transform .25s; pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="dot"></span> Supply Chain War Game — Control Room</h1>
+  <div class="sub" id="lastUpdated">connecting…</div>
+  <div class="actions">
+    <button id="resetBtn" class="danger">Reset to baseline</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- Warehouse -->
+  <section class="card span-5">
+    <h2>Warehouse Stock <span id="whBadge"></span></h2>
+    <div class="stat-row">
+      <div class="stat-value" id="whUnits">—</div>
+      <div class="stat-unit">units on hand</div>
+    </div>
+    <div class="bar-track"><div class="bar-fill" id="whBar" style="width:0%"></div></div>
+    <div class="meta-line">
+      <span id="whLocation">—</span>
+      <span id="whCapacity">— capacity</span>
+    </div>
+    <div class="meta-line">
+      <span>Days of supply: <b id="dos">—</b></span>
+      <span>Safety stock: <b id="safety">—</b></span>
+    </div>
+
+    <div class="form-row">
+      <input type="number" id="stockDelta" placeholder="± units" />
+      <input type="text" id="stockReason" placeholder="reason (e.g. inbound shipment)" />
+      <button class="primary" id="applyStock">Apply</button>
+    </div>
+    <div class="form-row">
+      <button id="quick2000">+2000</button>
+      <button id="quickMinus1000">-1000</button>
+      <button class="primary" id="replenishBtn">▶ Run weekly replenishment</button>
+    </div>
+  </section>
+
+  <!-- Retail demand -->
+  <section class="card span-7">
+    <h2>Retail Demand</h2>
+    <table>
+      <thead><tr><th>Point</th><th>Baseline</th><th>Current</th><th>Δ vs baseline</th></tr></thead>
+      <tbody id="retailBody"></tbody>
+    </table>
+  </section>
+
+  <!-- Suppliers -->
+  <section class="card span-6">
+    <h2>Suppliers</h2>
+    <table>
+      <thead><tr><th>Supplier</th><th>Status</th><th>Capacity/wk</th><th>Lead time</th><th>Unit cost</th></tr></thead>
+      <tbody id="supplierBody"></tbody>
+    </table>
+  </section>
+
+  <!-- Routes -->
+  <section class="card span-6">
+    <h2>Shipping Routes</h2>
+    <table>
+      <thead><tr><th>Route</th><th>Mode</th><th>Cost/unit</th><th>Transit</th><th>Risk</th></tr></thead>
+      <tbody id="routeBody"></tbody>
+    </table>
+  </section>
+
+  <!-- Disruption control room -->
+  <section class="card span-6">
+    <h2>Inject Disruption</h2>
+    <div class="form-row">
+      <select id="eventType">
+        <option value="port_strike">Port strike</option>
+        <option value="supplier_offline">Supplier offline</option>
+        <option value="demand_spike">Demand spike</option>
+      </select>
+      <select id="targetSelect"></select>
+    </div>
+    <div class="form-row">
+      <select id="severity">
+        <option value="minor">Minor</option>
+        <option value="moderate" selected>Moderate</option>
+        <option value="severe">Severe</option>
+      </select>
+      <input type="number" id="multiplier" placeholder="multiplier (optional)" step="0.1" style="width:150px" />
+    </div>
+    <div class="form-row">
+      <input type="text" id="notes" placeholder="notes (optional)" />
+      <button class="primary" id="injectBtn">Inject</button>
+    </div>
+
+    <h2 style="margin-top:18px">Active Disruptions</h2>
+    <div id="activeDisruptions"></div>
+  </section>
+
+  <!-- Event log -->
+  <section class="card span-6">
+    <h2>Live Event Log</h2>
+    <div class="event-log" id="eventLog"></div>
+  </section>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let toastTimer = null;
+
+function toast(msg) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
+}
+
+function badge(text, kind) {
+  return `<span class="badge ${kind}">${text}</span>`;
+}
+
+function fmt(n) {
+  return n === null || n === undefined ? "—" : Number(n).toLocaleString();
+}
+
+const TARGETS = {
+  port_strike: ["Supplier_A", "Supplier_B"],
+  supplier_offline: ["Supplier_A", "Supplier_B"],
+  demand_spike: ["Retail_North", "Retail_South", "Retail_West"],
+};
+
+function refreshTargetOptions() {
+  const type = $("eventType").value;
+  const opts = TARGETS[type] || [];
+  $("targetSelect").innerHTML = opts.map(o => `<option value="${o}">${o}</option>`).join("");
+}
+$("eventType").addEventListener("change", refreshTargetOptions);
+refreshTargetOptions();
+
+async function fetchState() {
+  try {
+    const res = await fetch("/api/state");
+    const state = await res.json();
+    render(state);
+    $("lastUpdated").textContent = "live • updated " + new Date().toLocaleTimeString();
+  } catch (e) {
+    $("lastUpdated").textContent = "connection lost — retrying…";
+  }
+}
+
+function render(state) {
+  // Warehouse
+  const wh = state.warehouse;
+  const computed = state.computed;
+  $("whUnits").textContent = fmt(wh.current_inventory_units);
+  $("whLocation").textContent = wh.location;
+  $("whCapacity").textContent = fmt(wh.capacity_units) + " capacity";
+  $("dos").textContent = computed.days_of_supply === null ? "—" : computed.days_of_supply + "d";
+  $("safety").textContent = fmt(wh.safety_stock_units);
+  const pct = Math.min(100, (wh.current_inventory_units / wh.capacity_units) * 100);
+  $("whBar").style.width = pct + "%";
+  $("whBar").style.background = computed.stockout_risk ? "var(--danger)" : (computed.overstock_risk ? "var(--warn)" : "var(--accent)");
+  $("whBadge").innerHTML = computed.stockout_risk ? badge("STOCKOUT RISK", "danger")
+    : computed.overstock_risk ? badge("OVERSTOCK", "warn")
+    : badge("HEALTHY", "ok");
+
+  // Retail
+  $("retailBody").innerHTML = Object.entries(state.retail).map(([id, r]) => {
+    const delta = r.base_weekly_demand ? Math.round(100 * (r.current_weekly_demand - r.base_weekly_demand) / r.base_weekly_demand) : 0;
+    const spiking = r.current_weekly_demand > r.base_weekly_demand;
+    return `<tr>
+      <td>${id}</td>
+      <td>${fmt(r.base_weekly_demand)}</td>
+      <td>${fmt(r.current_weekly_demand)}</td>
+      <td>${spiking ? badge((delta>0?"+":"")+delta+"%", "warn") : badge("baseline","muted")}</td>
+    </tr>`;
+  }).join("");
+
+  // Suppliers
+  $("supplierBody").innerHTML = Object.entries(state.suppliers).map(([id, s]) => `
+    <tr>
+      <td>${id}<br><span style="color:var(--muted);font-size:11px">${s.region}</span></td>
+      <td>${s.status === "online" ? badge("ONLINE","ok") : badge("OFFLINE","danger")}</td>
+      <td>${fmt(s.capacity_units_per_week)}</td>
+      <td>${s.lead_time_days === null ? "—" : s.lead_time_days + "d"}</td>
+      <td>$${s.unit_cost}</td>
+    </tr>`).join("");
+
+  // Routes
+  $("routeBody").innerHTML = Object.entries(state.routes).map(([id, r]) => {
+    const riskKind = r.risk_level === "low" ? "ok" : (r.risk_level === "elevated" ? "warn" : "danger");
+    return `<tr>
+      <td>${id}<br><span style="color:var(--muted);font-size:11px">${r.corridor}</span></td>
+      <td>${r.mode}</td>
+      <td>$${r.cost_per_unit}</td>
+      <td>${r.transit_days}d</td>
+      <td>${badge(r.risk_level, riskKind)}</td>
+    </tr>`;
+  }).join("");
+
+  // Active disruptions
+  const dis = state.active_disruptions;
+  $("activeDisruptions").innerHTML = dis.length ? dis.map(d => `
+    <div class="disruption-item">
+      <div>
+        <div class="desc">${d.description}</div>
+        <div class="id">${d.id} • ${d.injected_at}</div>
+      </div>
+      <button data-resolve="${d.id}">Resolve</button>
+    </div>`).join("") : `<div class="empty-note">No active disruptions. Network nominal.</div>`;
+
+  document.querySelectorAll("[data-resolve]").forEach(btn => {
+    btn.addEventListener("click", () => resolveDisruption(btn.getAttribute("data-resolve")));
+  });
+
+  // Event log
+  const log = state.event_log.slice().reverse();
+  $("eventLog").innerHTML = log.map(e => `<div><span class="ts">${e.timestamp}</span>${e.message}</div>`).join("");
+}
+
+async function applyStock() {
+  const delta = parseFloat($("stockDelta").value);
+  if (isNaN(delta)) { toast("Enter a number of units first"); return; }
+  const reason = $("stockReason").value || "manual dashboard adjustment";
+  const res = await fetch("/api/warehouse/adjust", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({units: delta, reason})
+  });
+  const data = await res.json();
+  toast(data.message || "Stock updated");
+  $("stockDelta").value = ""; $("stockReason").value = "";
+  fetchState();
+}
+$("applyStock").addEventListener("click", applyStock);
+$("quick2000").addEventListener("click", () => { $("stockDelta").value = 2000; $("stockReason").value = "quick restock"; applyStock(); });
+$("quickMinus1000").addEventListener("click", () => { $("stockDelta").value = -1000; $("stockReason").value = "quick drawdown"; applyStock(); });
+
+async function replenish() {
+  const res = await fetch("/api/warehouse/replenish", {
+    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({notes: "dashboard trigger"})
+  });
+  const data = await res.json();
+  toast(data.message || "Weekly replenishment run");
+  fetchState();
+}
+$("replenishBtn").addEventListener("click", replenish);
+
+async function inject() {
+  const body = {
+    event_type: $("eventType").value,
+    target: $("targetSelect").value,
+    severity: $("severity").value,
+    notes: $("notes").value,
+  };
+  const mult = parseFloat($("multiplier").value);
+  if (!isNaN(mult)) body.multiplier = mult;
+  const res = await fetch("/api/disruption/inject", {
+    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  toast(data.message || data.error || "Disruption injected");
+  fetchState();
+}
+$("injectBtn").addEventListener("click", inject);
+
+async function resolveDisruption(target) {
+  const res = await fetch("/api/disruption/resolve", {
+    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({target})
+  });
+  const data = await res.json();
+  toast(data.message || "Resolved");
+  fetchState();
+}
+
+$("resetBtn").addEventListener("click", async () => {
+  if (!confirm("Reset the entire simulation to baseline?")) return;
+  await fetch("/api/reset", {method: "POST"});
+  toast("Simulation reset to baseline");
+  fetchState();
+});
+
+fetchState();
+setInterval(fetchState, 3000);
+</script>
+
+</body>
+</html>
