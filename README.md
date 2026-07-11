@@ -35,7 +35,7 @@ Supply_Chain_Discruption_War_Game
 │       ├── disruption_control.py # InjectDisruption, ResetSimulation, GetSimulationStatus
 │       ├── logistics.py          # RouteOptimizer
 │       ├── supplier_status.py    # SupplierAStatusAPI, SupplierBStatusAPI
-│       └── war_game.db           # SQLite database file (created/reseeded at runtime)
+│       └── war_game.db           # SQLite database file 
 ├── dashboard/
 │   ├── app.py                    # Flask API, reuses world_state.py directly
 │   └── static/
@@ -97,7 +97,7 @@ Supply_Chain_Discruption_War_Game
 4. **Start the neuro-san agent server** (in a terminal with the env var
    set from step 3):
    ```bash
-   python -m neuro_san_studio run
+   python -m neuro_san_studio run or ns run
    ```
    Chat UI: `http://localhost:4173` — select `supply_chain_war_game`.
 
