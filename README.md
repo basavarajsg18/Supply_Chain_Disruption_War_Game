@@ -1,6 +1,6 @@
 # Supply Chain Disruption War Game
 Proposed By:
-Simran Biswas - 2038348
+Simran Biswas - 2038348 and 
 Basavaraj S Golasangi- 2438893
 
 A live, multi-agent supply chain simulation built on
