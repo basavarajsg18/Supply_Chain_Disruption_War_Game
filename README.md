@@ -1,5 +1,5 @@
 # Supply Chain Disruption War Game
-Proposed By:
+#Proposed By:
 Simran Biswas - 2038348 and 
 Basavaraj S Golasangi- 2438893
 
