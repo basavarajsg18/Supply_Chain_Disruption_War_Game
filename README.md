@@ -1,4 +1,7 @@
 # Supply Chain Disruption War Game
+Proposed By:
+Simran Biswas - 2038348
+Basavaraj S Golasangi- 2438893
 
 A live, multi-agent supply chain simulation built on
 [`neuro-san-studio`](https://github.com/cognizant-ai-lab/neuro-san-studio),
