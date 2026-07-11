@@ -24,7 +24,7 @@ a full clone also contains that framework's own scaffolding
 what this project actually adds:
 
 ```
-.
+Supply_Chain_Discruption_War_Game
 ├── coded_tools/
 │   └── supply_chain_war_game/
 │       ├── __init__.py
